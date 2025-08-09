@@ -25,7 +25,7 @@ func GetGmailService() (*gmail.Service, error) {
 		return nil, fmt.Errorf("unable to read client secret file: %v.\n\nPlease ensure you have:\n1. Created OAuth 2.0 credentials in Google Cloud Console\n2. Downloaded the credentials JSON file\n3. Renamed it to 'credentials.json' in the current directory", err)
 	}
 
-	config, err := google.ConfigFromJSON(b, gmail.GmailLabelsScope)
+	config, err := google.ConfigFromJSON(b, gmail.GmailModifyScope)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
 	}
@@ -74,12 +74,15 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 		}
 
 		// Send success response
-		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintf(w, `
 			<html>
-			<head><title>Gmail Label Fixer - Success</title></head>
+			<head>
+				<meta charset="UTF-8">
+				<title>Gmail Label Fixer - Success</title>
+			</head>
 			<body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
-				<h2>✅ Authentication Successful!</h2>
+				<h2>🎉 Authentication Successful!</h2>
 				<p>You can close this browser tab and return to the terminal.</p>
 				<script>setTimeout(() => window.close(), 3000);</script>
 			</body>

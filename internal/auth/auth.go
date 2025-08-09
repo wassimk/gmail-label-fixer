@@ -16,9 +16,7 @@ import (
 )
 
 const (
-	tokenFile    = "token.json"
-	callbackPort = "8080"
-	callbackAddr = "localhost:" + callbackPort
+	tokenFile = "token.json"
 )
 
 func GetGmailService() (*gmail.Service, error) {
@@ -34,8 +32,8 @@ func GetGmailService() (*gmail.Service, error) {
 		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
 	}
 
-	// Set redirect URI to localhost for desktop applications
-	config.RedirectURL = "http://" + callbackAddr
+	// Use out-of-band flow for CLI applications - more reliable than device code
+	config.RedirectURL = "urn:ietf:wg:oauth:2.0:oob"
 
 	client := getClient(config)
 
@@ -58,85 +56,41 @@ func getClient(config *oauth2.Config) *http.Client {
 }
 
 func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
-	// Create channels for communication
-	codeCh := make(chan string, 1)
-	errCh := make(chan error, 1)
-
-	// Start local server - bind to localhost only for security
-	server := &http.Server{Addr: callbackAddr}
-	server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		code := r.URL.Query().Get("code")
-		if code == "" {
-			errMsg := r.URL.Query().Get("error")
-			if errMsg != "" {
-				errCh <- fmt.Errorf("authorization error: %s", errMsg)
-			} else {
-				errCh <- fmt.Errorf("no authorization code received")
-			}
-			http.Error(w, "Authorization failed", 400)
-			return
-		}
-
-		// Send success response
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, `
-			<html>
-			<head>
-				<meta charset="UTF-8">
-				<title>Gmail Label Fixer - Success</title>
-			</head>
-			<body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
-				<h2>🎉 Authentication Successful!</h2>
-				<p>You can close this browser tab and return to the terminal.</p>
-				<script>setTimeout(() => window.close(), 3000);</script>
-			</body>
-			</html>
-		`)
-
-		codeCh <- code
-	})
-
-	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			errCh <- fmt.Errorf("server error: %v", err)
-		}
-	}()
-
-	// Generate auth URL and display instructions
+	// Generate authorization URL with out-of-band redirect
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	
 	fmt.Printf("\n🔐 Gmail Authentication Required\n")
 	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-	fmt.Printf("Opening your browser for authentication...\n")
-	fmt.Printf("If it doesn't open automatically, visit:\n")
-	fmt.Printf("   %v\n", authURL)
+	fmt.Printf("📱 Please complete the authorization in your browser:\n")
+	fmt.Printf("   1. Visit: %s\n", authURL)
+	fmt.Printf("   2. Complete the authorization process\n")
+	fmt.Printf("   3. Copy the authorization code when prompted\n")
+	fmt.Printf("\n💡 Tip: The URL will be opened automatically if possible\n")
 	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
-	// Try to open browser (will fail gracefully if not possible)
+	// Try to open browser automatically
 	openBrowser(authURL)
 
-	// Wait for response
-	var code string
-	select {
-	case code = <-codeCh:
-		fmt.Printf("✅ Authorization received!\n")
-	case err := <-errCh:
-		server.Shutdown(context.Background())
-		log.Fatalf("Authorization failed: %v", err)
+	// Prompt user to enter the authorization code
+	fmt.Printf("\n📋 Enter the authorization code: ")
+	var authCode string
+	fmt.Scanln(&authCode)
+	
+	if authCode == "" {
+		log.Fatal("No authorization code provided")
 	}
-
-	// Cleanup server gracefully
-	server.Shutdown(context.Background())
-
-	// Exchange code for token
+	
+	// Exchange the authorization code for a token
 	fmt.Printf("🔄 Exchanging authorization code for access token...\n")
-	tok, err := config.Exchange(context.TODO(), code)
+	token, err := config.Exchange(context.Background(), authCode)
 	if err != nil {
 		log.Fatalf("Unable to retrieve token: %v", err)
 	}
 
 	fmt.Printf("✅ Authentication successful!\n\n")
-	return tok
+	return token
 }
+
 
 func openBrowser(url string) {
 	// Try to open browser on different platforms

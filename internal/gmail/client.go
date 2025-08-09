@@ -11,6 +11,21 @@ const (
 	userID = "me" // Gmail API user identifier for authenticated user
 )
 
+// System labels that should be skipped during label fixing
+var skipLabels = map[string]bool{
+	"INBOX.Trash":         true,
+	"INBOX.Sent":          true,
+	"INBOX.Sent Messages": true,
+	"Inbox.Trash":         true,
+	"Inbox.Sent":          true,
+	"Inbox.Sent Messages": true,
+}
+
+// shouldSkipLabel checks if a label should be skipped during processing
+func shouldSkipLabel(labelName string) bool {
+	return skipLabels[labelName]
+}
+
 type Client struct {
 	service *gmail.Service
 	userID  string
@@ -123,18 +138,41 @@ func (c *Client) LabelExists(labelName string) (*gmail.Label, bool) {
 	return nil, false
 }
 
+type LabelAnalysis struct {
+	ProcessableLabels []*gmail.Label
+	SkippedLabels     []*gmail.Label
+}
+
 func (c *Client) FindPeriodSeparatedLabels() ([]*gmail.Label, error) {
+	analysis, err := c.FindPeriodSeparatedLabelsWithAnalysis()
+	if err != nil {
+		return nil, err
+	}
+	return analysis.ProcessableLabels, nil
+}
+
+func (c *Client) FindPeriodSeparatedLabelsWithAnalysis() (*LabelAnalysis, error) {
 	labels, err := c.GetAllLabels()
 	if err != nil {
 		return nil, err
 	}
 
-	var periodLabels []*gmail.Label
+	var processableLabels []*gmail.Label
+	var skippedLabels []*gmail.Label
+
 	for _, label := range labels {
 		if label.Type == "user" && strings.Contains(label.Name, ".") {
-			periodLabels = append(periodLabels, label)
+			// Skip system labels that should not be processed
+			if shouldSkipLabel(label.Name) {
+				skippedLabels = append(skippedLabels, label)
+				continue
+			}
+			processableLabels = append(processableLabels, label)
 		}
 	}
 
-	return periodLabels, nil
+	return &LabelAnalysis{
+		ProcessableLabels: processableLabels,
+		SkippedLabels:     skippedLabels,
+	}, nil
 }

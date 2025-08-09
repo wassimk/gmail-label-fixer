@@ -145,6 +145,11 @@ func (o *Operations) DryRun() error {
 
 	fmt.Printf("\n📊 Found %d period-separated labels with %d total messages\n", len(result.PeriodLabels), result.TotalMessages)
 
+	// Show information about skipped system labels
+	if len(result.SkippedLabels) > 0 {
+		fmt.Printf("ℹ️  Skipped %d system labels (INBOX.Trash, INBOX.Sent, etc.)\n", len(result.SkippedLabels))
+	}
+
 	// Debug: Show first few labels for troubleshooting
 	fmt.Printf("\n🔍 Sample labels found:\n")
 	count := 0

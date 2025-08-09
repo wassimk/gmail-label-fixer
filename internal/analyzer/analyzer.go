@@ -13,6 +13,7 @@ type AnalysisResult struct {
 	Transformations map[string]*LabelTransformation
 	RequiredParents []string
 	TotalMessages   int
+	SkippedLabels   []*gmailAPI.Label
 }
 
 type Analyzer struct {
@@ -24,10 +25,12 @@ func NewAnalyzer(client *gmail.Client) *Analyzer {
 }
 
 func (a *Analyzer) AnalyzeLabels() (*AnalysisResult, error) {
-	periodLabels, err := a.client.FindPeriodSeparatedLabels()
+	analysis, err := a.client.FindPeriodSeparatedLabelsWithAnalysis()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find period-separated labels: %v", err)
 	}
+
+	periodLabels := analysis.ProcessableLabels
 
 	transformations := make(map[string]*LabelTransformation)
 	totalMessages := 0
@@ -59,6 +62,7 @@ func (a *Analyzer) AnalyzeLabels() (*AnalysisResult, error) {
 		Transformations: transformations,
 		RequiredParents: requiredParents,
 		TotalMessages:   totalMessages,
+		SkippedLabels:   analysis.SkippedLabels,
 	}, nil
 }
 

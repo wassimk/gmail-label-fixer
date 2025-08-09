@@ -7,6 +7,10 @@ import (
 	"google.golang.org/api/gmail/v1"
 )
 
+const (
+	userID = "me" // Gmail API user identifier for authenticated user
+)
+
 type Client struct {
 	service *gmail.Service
 	userID  string
@@ -15,7 +19,7 @@ type Client struct {
 func NewClient(service *gmail.Service) *Client {
 	return &Client{
 		service: service,
-		userID:  "me",
+		userID:  userID,
 	}
 }
 

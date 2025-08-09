@@ -15,7 +15,11 @@ import (
 	"google.golang.org/api/option"
 )
 
-const tokenFile = "token.json"
+const (
+	tokenFile    = "token.json"
+	callbackPort = "8080"
+	callbackAddr = "localhost:" + callbackPort
+)
 
 func GetGmailService() (*gmail.Service, error) {
 	ctx := context.Background()
@@ -31,7 +35,7 @@ func GetGmailService() (*gmail.Service, error) {
 	}
 
 	// Set redirect URI to localhost for desktop applications
-	config.RedirectURL = "http://localhost:8080"
+	config.RedirectURL = "http://" + callbackAddr
 
 	client := getClient(config)
 
@@ -58,8 +62,8 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 	codeCh := make(chan string, 1)
 	errCh := make(chan error, 1)
 
-	// Start local server
-	server := &http.Server{Addr: ":8080"}
+	// Start local server - bind to localhost only for security
+	server := &http.Server{Addr: callbackAddr}
 	server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		code := r.URL.Query().Get("code")
 		if code == "" {
@@ -116,12 +120,12 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 	case code = <-codeCh:
 		fmt.Printf("✅ Authorization received!\n")
 	case err := <-errCh:
-		server.Close()
+		server.Shutdown(context.Background())
 		log.Fatalf("Authorization failed: %v", err)
 	}
 
-	// Cleanup server
-	server.Close()
+	// Cleanup server gracefully
+	server.Shutdown(context.Background())
 
 	// Exchange code for token
 	fmt.Printf("🔄 Exchanging authorization code for access token...\n")
@@ -177,10 +181,17 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 
 func saveToken(path string, token *oauth2.Token) {
 	fmt.Printf("Saving credential file to: %s\n", path)
+
+	// Remove existing file first to ensure proper permissions
+	os.Remove(path)
+
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		log.Fatalf("Unable to cache oauth token: %v", err)
 	}
 	defer f.Close()
-	json.NewEncoder(f).Encode(token)
+
+	if err := json.NewEncoder(f).Encode(token); err != nil {
+		log.Fatalf("Unable to encode oauth token: %v", err)
+	}
 }

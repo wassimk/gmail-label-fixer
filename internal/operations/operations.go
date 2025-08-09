@@ -18,6 +18,13 @@ import (
 	"google.golang.org/api/googleapi"
 )
 
+const (
+	defaultRateLimitDelay = 200  // Default delay between API calls in milliseconds
+	defaultMaxRetries     = 3    // Default maximum retries for rate-limited requests
+	maxBackoffDelay       = 32   // Maximum backoff delay in seconds
+	jitterMaxMs           = 1000 // Maximum jitter in milliseconds
+)
+
 type Config struct {
 	RateLimitDelay int // Delay between API calls in milliseconds
 	MaxRetries     int // Maximum retries for rate-limited requests
@@ -34,8 +41,8 @@ func NewOperations(client *gmail.Client) *Operations {
 		client:   client,
 		analyzer: analyzer.NewAnalyzer(client),
 		config: &Config{
-			RateLimitDelay: 200, // Default 200ms delay
-			MaxRetries:     3,   // Default 3 retries
+			RateLimitDelay: defaultRateLimitDelay,
+			MaxRetries:     defaultMaxRetries,
 		},
 	}
 }
@@ -63,11 +70,11 @@ func (o *Operations) retryWithBackoff(operation func() error) error {
 		if attempt > 0 {
 			// Exponential backoff with jitter
 			baseDelay := time.Duration(math.Pow(2, float64(attempt-1))) * time.Second
-			jitter := time.Duration(rand.Intn(1000)) * time.Millisecond
+			jitter := time.Duration(rand.Intn(jitterMaxMs)) * time.Millisecond
 			delay := baseDelay + jitter
 
-			if delay > 32*time.Second {
-				delay = 32 * time.Second // Cap at 32 seconds
+			if delay > maxBackoffDelay*time.Second {
+				delay = maxBackoffDelay * time.Second // Cap at maximum backoff delay
 			}
 
 			fmt.Printf("   ⏳ Rate limit hit, waiting %v before retry %d/%d...\n", delay, attempt, o.config.MaxRetries)
@@ -274,14 +281,16 @@ func (o *Operations) findLabelWithChildren(labelName string) ([]*analyzer.LabelT
 	for _, label := range matchingLabels {
 		transformation := analyzer.ParseLabelHierarchy(label.Name)
 		if transformation == nil {
+			fmt.Printf("   ⚠️  Skipping invalid label format: %s\n", label.Name)
 			continue // Skip invalid labels
 		}
 
 		transformation.OriginalID = label.Id
 
-		// Get message count (quietly, no debug output)
+		// Get message count with proper error logging
 		messageIDs, err := o.client.GetMessagesWithLabel(label.Id)
 		if err != nil {
+			fmt.Printf("   ⚠️  Warning: Could not count messages for label %s: %v\n", label.Name, err)
 			transformation.MessageCount = 0 // Continue anyway
 		} else {
 			transformation.MessageCount = len(messageIDs)
@@ -322,9 +331,10 @@ func (o *Operations) findSpecificLabel(labelName string) (*analyzer.LabelTransfo
 
 	transformation.OriginalID = targetLabel.Id
 
-	// Get message count (quietly, no debug output)
+	// Get message count with proper error handling
 	messageIDs, err := o.client.GetMessagesWithLabel(targetLabel.Id)
 	if err != nil {
+		fmt.Printf("   ⚠️  Warning: Could not count messages for label %s: %v\n", targetLabel.Name, err)
 		transformation.MessageCount = 0 // Continue anyway
 	} else {
 		transformation.MessageCount = len(messageIDs)

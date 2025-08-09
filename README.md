@@ -15,14 +15,21 @@ A command-line tool to convert period-separated Gmail labels (like `Vacations.20
 
 ### Option 1: Download Prebuilt Binary
 
-Download the latest binary for your platform from the [releases page](../../releases/latest):
-- **Linux**: `gmail-label-fixer-linux-amd64` or `gmail-label-fixer-linux-arm64`
-- **macOS**: `gmail-label-fixer-darwin-amd64` or `gmail-label-fixer-darwin-arm64`
-- **Windows**: `gmail-label-fixer-windows-amd64.exe` or `gmail-label-fixer-windows-arm64.exe`
+Download the latest release for your platform from the [releases page](../../releases/latest):
+- **Linux**: Download `gmail-label-fixer_Linux_x86_64.tar.gz` or `gmail-label-fixer_Linux_arm64.tar.gz`
+- **macOS**: Download `gmail-label-fixer_Darwin_x86_64.tar.gz` or `gmail-label-fixer_Darwin_arm64.tar.gz`  
+- **Windows**: Download `gmail-label-fixer_Windows_x86_64.zip` or `gmail-label-fixer_Windows_arm64.zip`
 
-Make the binary executable (Linux/macOS):
+Extract and make executable (Linux/macOS):
 ```bash
-chmod +x gmail-label-fixer-*
+# Extract the archive
+tar -xzf gmail-label-fixer_*.tar.gz
+chmod +x gmail-label-fixer
+```
+
+Extract (Windows):
+```cmd
+# Extract the zip file and run gmail-label-fixer.exe
 ```
 
 ### Option 2: Build from Source

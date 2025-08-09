@@ -89,13 +89,13 @@ Example output:
 🔍 Analyzing Gmail labels...
 📊 Found 3 period-separated labels with 45 total messages
 
-+------------------+----------------------+----------+------------------+
-|  CURRENT LABEL   | NEW NESTED STRUCTURE | MESSAGES | REQUIRED PARENTS |
-+------------------+----------------------+----------+------------------+
-| Vacations.2025.Mexico | Vacations/2025/Mexico  |    12    |    2 parents     |
-| Work.Projects.Q1      | Work/Projects/Q1       |    23    |    2 parents     |
-| Archive.2024.Photos   | Archive/2024/Photos    |    10    |    2 parents     |
-+------------------+----------------------+----------+------------------+
++---------------------+----------------------+----------+------------------+
+|    CURRENT LABEL    | NEW NESTED STRUCTURE | MESSAGES | REQUIRED PARENTS |
++---------------------+----------------------+----------+------------------+
+| Vacations.2025.Mexico| Vacations/2025/Mexico|    12    |    2 parents     |
+| Work.Projects.Q1     | Work/Projects/Q1     |    23    |    2 parents     |
+| Archive.2024.Photos  | Archive/2024/Photos  |    10    |    2 parents     |
++---------------------+----------------------+----------+------------------+
 
 📁 Required parent labels to be created (4):
    - Archive/2024

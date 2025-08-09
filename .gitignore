@@ -1,0 +1,41 @@
+# Gmail Label Fixer - Git Ignore
+
+# Compiled binary
+gmail-label-fixer
+gmail-label-fixer.exe
+
+# Google OAuth credentials and tokens
+credentials.json
+token.json
+
+# Go build artifacts  
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test files
+*.test
+
+# Go coverage files
+*.out
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Log files
+*.log

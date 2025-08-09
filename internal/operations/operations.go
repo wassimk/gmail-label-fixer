@@ -165,14 +165,6 @@ func (o *Operations) DryRun() error {
 	// Display transformations table
 	o.displayTransformationsTable(result.Transformations)
 
-	// Display required parent labels
-	if len(result.RequiredParents) > 0 {
-		fmt.Printf("\n📁 Required parent labels to be created (%d):\n", len(result.RequiredParents))
-		for _, parent := range result.RequiredParents {
-			fmt.Printf("   - %s\n", parent)
-		}
-	}
-
 	fmt.Printf("\n💡 Next steps:\n")
 	fmt.Printf("   - Fix specific label: gmail-label-fixer fix --label \"LabelName\"\n")
 	fmt.Printf("   - Fix all labels: gmail-label-fixer fix --all\n")
@@ -182,7 +174,7 @@ func (o *Operations) DryRun() error {
 
 func (o *Operations) displayTransformationsTable(transformations map[string]*analyzer.LabelTransformation) {
 	table := tablewriter.NewTable(os.Stdout,
-		tablewriter.WithHeader([]string{"Current Label", "New Nested Structure", "Messages", "Required Parents"}),
+		tablewriter.WithHeader([]string{"Current Label", "New Nested Structure", "Messages"}),
 	)
 
 	// Sort labels for consistent output
@@ -194,16 +186,11 @@ func (o *Operations) displayTransformationsTable(transformations map[string]*ana
 
 	for _, label := range labels {
 		transformation := transformations[label]
-		parentsStr := ""
-		if len(transformation.RequiredParents) > 0 {
-			parentsStr = fmt.Sprintf("%d parents", len(transformation.RequiredParents))
-		}
 
 		table.Append([]string{
 			transformation.OriginalLabel,
 			transformation.NestedStructure,
 			strconv.Itoa(transformation.MessageCount),
-			parentsStr,
 		})
 	}
 
@@ -277,30 +264,7 @@ func (o *Operations) FixAllLabels() error {
 		return nil
 	}
 
-	// Step 1: Create all required parent labels first (avoids duplicates)
-	if len(result.RequiredParents) > 0 {
-		fmt.Printf("\n📁 Creating %d required parent labels...\n", len(result.RequiredParents))
-		for i, parentName := range result.RequiredParents {
-			if _, exists := o.client.LabelExists(parentName); !exists {
-				fmt.Printf("   [%d/%d] Creating parent: %s\n", i+1, len(result.RequiredParents), parentName)
-				
-				err := o.retryWithBackoff(func() error {
-					_, err := o.client.CreateLabel(parentName)
-					return err
-				})
-				
-				if err != nil {
-					fmt.Printf("   ⚠️  Warning: Failed to create parent %s: %v\n", parentName, err)
-				} else {
-					o.withRateLimit() // Apply rate limit after successful operation
-				}
-			} else {
-				fmt.Printf("   [%d/%d] Skipping existing parent: %s\n", i+1, len(result.RequiredParents), parentName)
-			}
-		}
-	}
-
-	// Step 2: Process all transformations
+	// Process all transformations - Gmail will automatically create parent hierarchy when renaming
 	processed := 0
 	for _, transformation := range result.Transformations {
 		fmt.Printf("\n[%d/%d] Processing: %s\n", processed+1, len(result.Transformations), transformation.OriginalLabel)
@@ -319,98 +283,30 @@ func (o *Operations) FixAllLabels() error {
 }
 
 func (o *Operations) processTransformation(transformation *analyzer.LabelTransformation) error {
-	// Step 1: Create required parent labels (only for selective fixes)
-	for _, parentName := range transformation.RequiredParents {
-		if _, exists := o.client.LabelExists(parentName); !exists {
-			fmt.Printf("   Creating parent label: %s\n", parentName)
-			err := o.retryWithBackoff(func() error {
-				_, err := o.client.CreateLabel(parentName)
-				return err
-			})
-			if err != nil {
-				return fmt.Errorf("failed to create parent label %s: %v", parentName, err)
-			}
-			o.withRateLimit()
-		}
-	}
-
-	// Step 2: Create the final nested label (check if it already exists)
-	var newLabel *gmailAPI.Label
+	// Check if target label name already exists
 	if existingLabel, exists := o.client.LabelExists(transformation.NestedStructure); exists {
-		fmt.Printf("   Using existing nested label: %s\n", transformation.NestedStructure)
-		newLabel = existingLabel
-	} else {
-		fmt.Printf("   Creating nested label: %s\n", transformation.NestedStructure)
-		err := o.retryWithBackoff(func() error {
-			var err error
-			newLabel, err = o.client.CreateLabel(transformation.NestedStructure)
-			return err
-		})
-		if err != nil {
-			return fmt.Errorf("failed to create nested label %s: %v", transformation.NestedStructure, err)
-		}
-		o.withRateLimit()
+		return fmt.Errorf("target label '%s' already exists (ID: %s). Cannot rename to existing label", transformation.NestedStructure, existingLabel.Id)
 	}
 
-	// Step 3: Move all messages from old label to new label (with batching)
-	messageIDs, err := o.client.GetMessagesWithLabel(transformation.OriginalID)
-	if err != nil {
-		return fmt.Errorf("failed to get messages for label %s: %v", transformation.OriginalLabel, err)
-	}
-
-	if len(messageIDs) > 0 {
-		fmt.Printf("   Moving %d messages to new label...\n", len(messageIDs))
-		err := o.processBatchMessages(messageIDs, newLabel.Id, transformation.OriginalID)
-		if err != nil {
-			return fmt.Errorf("failed to move messages: %v", err)
-		}
-	}
-
-	// Step 4: Delete the original period-separated label
-	fmt.Printf("   Deleting original label: %s\n", transformation.OriginalLabel)
-	err = o.retryWithBackoff(func() error {
-		return o.client.DeleteLabel(transformation.OriginalID)
+	// Simply rename the label - Gmail automatically preserves all message associations!
+	fmt.Printf("   Renaming label: %s → %s\n", transformation.OriginalLabel, transformation.NestedStructure)
+	
+	var renamedLabel *gmailAPI.Label
+	err := o.retryWithBackoff(func() error {
+		var err error
+		renamedLabel, err = o.client.RenameLabel(transformation.OriginalID, transformation.NestedStructure)
+		return err
 	})
+	
 	if err != nil {
-		return fmt.Errorf("failed to delete original label %s: %v", transformation.OriginalLabel, err)
+		return fmt.Errorf("failed to rename label: %v", err)
 	}
+	
 	o.withRateLimit()
-
-	return nil
-}
-
-// processBatchMessages handles batch processing of message label modifications
-func (o *Operations) processBatchMessages(messageIDs []string, newLabelID, oldLabelID string) error {
-	const batchSize = 25 // Process 25 messages at a time
 	
-	for i := 0; i < len(messageIDs); i += batchSize {
-		end := i + batchSize
-		if end > len(messageIDs) {
-			end = len(messageIDs)
-		}
-		
-		batch := messageIDs[i:end]
-		fmt.Printf("     Processing batch %d-%d of %d messages...\n", i+1, end, len(messageIDs))
-		
-		// Process each message in the batch with rate limiting
-		for j, messageID := range batch {
-			err := o.retryWithBackoff(func() error {
-				return o.client.ModifyMessageLabels(
-					messageID,
-					[]string{newLabelID},
-					[]string{oldLabelID},
-				)
-			})
-			
-			if err != nil {
-				fmt.Printf("     ⚠️  Warning: Failed to move message %d in batch: %v\n", j+1, err)
-				continue // Continue with other messages in batch
-			}
-			
-			// Apply rate limiting after each successful message
-			o.withRateLimit()
-		}
-	}
+	fmt.Printf("   ✅ Successfully renamed to: %s (ID: %s)\n", renamedLabel.Name, renamedLabel.Id)
+	fmt.Printf("   📧 All %d messages automatically preserved\n", transformation.MessageCount)
 	
 	return nil
 }
+

@@ -43,6 +43,20 @@ func (c *Client) CreateLabel(name string) (*gmail.Label, error) {
 	return createdLabel, nil
 }
 
+func (c *Client) RenameLabel(labelID, newName string) (*gmail.Label, error) {
+	// Create the label patch with just the name change
+	labelPatch := &gmail.Label{
+		Name: newName,
+	}
+
+	call := c.service.Users.Labels.Patch(c.userID, labelID, labelPatch)
+	updatedLabel, err := call.Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to rename label %s to %s: %v", labelID, newName, err)
+	}
+	return updatedLabel, nil
+}
+
 func (c *Client) DeleteLabel(labelID string) error {
 	call := c.service.Users.Labels.Delete(c.userID, labelID)
 	err := call.Do()

@@ -7,7 +7,7 @@ A command-line tool to convert period-separated Gmail labels (like `Vacations.20
 - **Dry Run Analysis**: Analyze existing labels and preview changes without making modifications
 - **Selective Fixes**: Fix specific labels individually 
 - **Batch Processing**: Convert all period-separated labels at once
-- **Safe Operations**: Preserves all email-to-label associations during conversion
+- **Safe Operations**: Uses Gmail's native label rename API to preserve all email associations
 - **Progress Tracking**: Real-time feedback for batch operations
 - **Conflict Detection**: Identifies potential issues before making changes
 
@@ -109,45 +109,6 @@ Convert all detected period-separated labels:
 ```bash
 ./gmail-label-fixer fix all
 ```
-
-Example output:
-```
-🔧 Fixing all period-separated labels...
-
-[1/3] Processing: Vacations.2025.Mexico
-   Creating parent label: Vacations
-   Creating parent label: Vacations/2025
-   Creating nested label: Vacations/2025/Mexico
-   Moving 12 messages to new label...
-   Deleting original label: Vacations.2025.Mexico
-✅ Success: Vacations.2025.Mexico → Vacations/2025/Mexico
-
-[2/3] Processing: Work.Projects.Q1
-   Creating parent label: Work
-   Creating parent label: Work/Projects
-   Creating nested label: Work/Projects/Q1
-   Moving 23 messages to new label...
-   Deleting original label: Work.Projects.Q1
-✅ Success: Work.Projects.Q1 → Work/Projects/Q1
-
-🎉 Completed! Processed 3/3 labels successfully.
-```
-
-## How It Works
-
-The tool performs the following steps for each period-separated label:
-
-1. **Analysis**: Identifies labels containing periods and parses their hierarchy
-2. **Parent Creation**: Creates any missing parent labels in the hierarchy
-3. **Label Creation**: Creates the final nested label (e.g., `Vacations/2025/Mexico`)
-4. **Message Migration**: Moves all emails from the old flat label to the new nested label
-5. **Cleanup**: Deletes the original period-separated label
-
-## Important Notes
-
-- **Gmail API Limitations**: The Gmail API has rate limits. For large numbers of labels, the tool may need to pause between operations.
-- **Backup Recommended**: While the tool preserves all emails, consider backing up your Gmail data before running batch operations.
-- **Nested Structure**: Gmail uses forward slashes (`/`) to create nested label hierarchies. Labels with periods are treated as flat labels with periods in the name.
 
 ## Troubleshooting
 

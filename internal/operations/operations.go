@@ -58,40 +58,40 @@ func (o *Operations) withRateLimit() {
 // retryWithBackoff performs an operation with exponential backoff for rate limits
 func (o *Operations) retryWithBackoff(operation func() error) error {
 	var lastErr error
-	
+
 	for attempt := 0; attempt <= o.config.MaxRetries; attempt++ {
 		if attempt > 0 {
 			// Exponential backoff with jitter
 			baseDelay := time.Duration(math.Pow(2, float64(attempt-1))) * time.Second
 			jitter := time.Duration(rand.Intn(1000)) * time.Millisecond
 			delay := baseDelay + jitter
-			
+
 			if delay > 32*time.Second {
-				delay = 32*time.Second // Cap at 32 seconds
+				delay = 32 * time.Second // Cap at 32 seconds
 			}
-			
+
 			fmt.Printf("   ⏳ Rate limit hit, waiting %v before retry %d/%d...\n", delay, attempt, o.config.MaxRetries)
 			time.Sleep(delay)
 		}
-		
+
 		err := operation()
 		if err == nil {
 			return nil // Success
 		}
-		
+
 		lastErr = err
-		
+
 		// Check if this is a retryable error
 		if !isRetryableError(err) {
 			return err // Don't retry non-retryable errors
 		}
-		
+
 		// Don't sleep after the last attempt
 		if attempt == o.config.MaxRetries {
 			break
 		}
 	}
-	
+
 	return fmt.Errorf("operation failed after %d retries: %v", o.config.MaxRetries, lastErr)
 }
 
@@ -100,22 +100,22 @@ func isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-	
+
 	// Check for Google API errors
 	if apiErr, ok := err.(*googleapi.Error); ok {
 		switch apiErr.Code {
 		case http.StatusTooManyRequests, // 429
 			http.StatusInternalServerError, // 500
-			http.StatusBadGateway,         // 502
-			http.StatusServiceUnavailable, // 503
-			http.StatusGatewayTimeout:     // 504
+			http.StatusBadGateway,          // 502
+			http.StatusServiceUnavailable,  // 503
+			http.StatusGatewayTimeout:      // 504
 			return true
 		case http.StatusForbidden: // 403 - might be quota exceeded
 			return strings.Contains(strings.ToLower(apiErr.Message), "quota") ||
 				strings.Contains(strings.ToLower(apiErr.Message), "rate limit")
 		}
 	}
-	
+
 	// Check for network-related errors
 	errStr := strings.ToLower(err.Error())
 	return strings.Contains(errStr, "timeout") ||
@@ -125,7 +125,7 @@ func isRetryableError(err error) bool {
 
 func (o *Operations) DryRun() error {
 	fmt.Println("🔍 Analyzing Gmail labels...")
-	
+
 	result, err := o.analyzer.AnalyzeLabels()
 	if err != nil {
 		return fmt.Errorf("analysis failed: %v", err)
@@ -137,7 +137,7 @@ func (o *Operations) DryRun() error {
 	}
 
 	fmt.Printf("\n📊 Found %d period-separated labels with %d total messages\n", len(result.PeriodLabels), result.TotalMessages)
-	
+
 	// Debug: Show first few labels for troubleshooting
 	fmt.Printf("\n🔍 Sample labels found:\n")
 	count := 0
@@ -217,21 +217,21 @@ func (o *Operations) FixLabel(labelName string) error {
 		for i, transformation := range transformations {
 			fmt.Printf("   [%d/%d] %s → %s\n", i+1, len(transformations), transformation.OriginalLabel, transformation.NestedStructure)
 		}
-		
+
 		// Process all transformations
 		processed := 0
 		for i, transformation := range transformations {
 			fmt.Printf("\n[%d/%d] Processing: %s\n", i+1, len(transformations), transformation.OriginalLabel)
-			
+
 			if err := o.processTransformation(transformation); err != nil {
 				fmt.Printf("❌ Failed: %v\n", err)
 				continue
 			}
-			
+
 			processed++
 			fmt.Printf("✅ Success: %s → %s\n", transformation.OriginalLabel, transformation.NestedStructure)
 		}
-		
+
 		fmt.Printf("\n🎉 Completed! Processed %d/%d labels successfully.\n", processed, len(transformations))
 		return nil
 	}
@@ -276,7 +276,7 @@ func (o *Operations) findLabelWithChildren(labelName string) ([]*analyzer.LabelT
 		if transformation == nil {
 			continue // Skip invalid labels
 		}
-		
+
 		transformation.OriginalID = label.Id
 
 		// Get message count (quietly, no debug output)
@@ -319,7 +319,7 @@ func (o *Operations) findSpecificLabel(labelName string) (*analyzer.LabelTransfo
 	if transformation == nil {
 		return nil, fmt.Errorf("label '%s' is not period-separated", labelName)
 	}
-	
+
 	transformation.OriginalID = targetLabel.Id
 
 	// Get message count (quietly, no debug output)
@@ -350,12 +350,12 @@ func (o *Operations) FixAllLabels() error {
 	processed := 0
 	for _, transformation := range result.Transformations {
 		fmt.Printf("\n[%d/%d] Processing: %s\n", processed+1, len(result.Transformations), transformation.OriginalLabel)
-		
+
 		if err := o.processTransformation(transformation); err != nil {
 			fmt.Printf("❌ Failed: %v\n", err)
 			continue
 		}
-		
+
 		processed++
 		fmt.Printf("✅ Success: %s → %s\n", transformation.OriginalLabel, transformation.NestedStructure)
 	}
@@ -372,23 +372,22 @@ func (o *Operations) processTransformation(transformation *analyzer.LabelTransfo
 
 	// Simply rename the label - Gmail automatically preserves all message associations!
 	fmt.Printf("   Renaming label: %s → %s\n", transformation.OriginalLabel, transformation.NestedStructure)
-	
+
 	var renamedLabel *gmailAPI.Label
 	err := o.retryWithBackoff(func() error {
 		var err error
 		renamedLabel, err = o.client.RenameLabel(transformation.OriginalID, transformation.NestedStructure)
 		return err
 	})
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to rename label: %v", err)
 	}
-	
+
 	o.withRateLimit()
-	
+
 	fmt.Printf("   ✅ Successfully renamed to: %s (ID: %s)\n", renamedLabel.Name, renamedLabel.Id)
 	fmt.Printf("   📧 All %d messages automatically preserved\n", transformation.MessageCount)
-	
+
 	return nil
 }
-

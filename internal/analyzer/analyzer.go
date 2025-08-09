@@ -9,10 +9,10 @@ import (
 )
 
 type AnalysisResult struct {
-	PeriodLabels     []*gmailAPI.Label
-	Transformations  map[string]*LabelTransformation
-	RequiredParents  []string
-	TotalMessages    int
+	PeriodLabels    []*gmailAPI.Label
+	Transformations map[string]*LabelTransformation
+	RequiredParents []string
+	TotalMessages   int
 }
 
 type Analyzer struct {
@@ -64,7 +64,7 @@ func (a *Analyzer) AnalyzeLabels() (*AnalysisResult, error) {
 
 func (a *Analyzer) CheckConflicts(transformations map[string]*LabelTransformation) []string {
 	var conflicts []string
-	
+
 	// Check if any required parent names conflict with existing labels
 	for _, transformation := range transformations {
 		for _, parentName := range transformation.RequiredParents {
@@ -72,12 +72,12 @@ func (a *Analyzer) CheckConflicts(transformations map[string]*LabelTransformatio
 				conflicts = append(conflicts, fmt.Sprintf("Parent label '%s' already exists (ID: %s)", parentName, existingLabel.Id))
 			}
 		}
-		
+
 		// Check if the target nested name already exists
 		if existingLabel, exists := a.client.LabelExists(transformation.NestedStructure); exists {
 			conflicts = append(conflicts, fmt.Sprintf("Target label '%s' already exists (ID: %s)", transformation.NestedStructure, existingLabel.Id))
 		}
 	}
-	
+
 	return conflicts
 }

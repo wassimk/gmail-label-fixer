@@ -30,9 +30,9 @@ func (c *Client) GetAllLabels() ([]*gmail.Label, error) {
 
 func (c *Client) CreateLabel(name string) (*gmail.Label, error) {
 	label := &gmail.Label{
-		Name:                    name,
-		MessageListVisibility:   "show",
-		LabelListVisibility:     "labelShow",
+		Name:                  name,
+		MessageListVisibility: "show",
+		LabelListVisibility:   "labelShow",
 	}
 
 	call := c.service.Users.Labels.Create(c.userID, label)
@@ -69,25 +69,25 @@ func (c *Client) DeleteLabel(labelID string) error {
 func (c *Client) GetMessagesWithLabel(labelID string) ([]string, error) {
 	// Use labelId parameter instead of search query for more reliable results
 	call := c.service.Users.Messages.List(c.userID).LabelIds(labelID)
-	
+
 	var messageIDs []string
-	
+
 	for {
 		response, err := call.Do()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get messages with label %s: %v", labelID, err)
 		}
-		
+
 		for _, message := range response.Messages {
 			messageIDs = append(messageIDs, message.Id)
 		}
-		
+
 		if response.NextPageToken == "" {
 			break
 		}
 		call.PageToken(response.NextPageToken)
 	}
-	
+
 	return messageIDs, nil
 }
 
@@ -96,7 +96,7 @@ func (c *Client) ModifyMessageLabels(messageID string, addLabelIDs, removeLabelI
 		AddLabelIds:    addLabelIDs,
 		RemoveLabelIds: removeLabelIDs,
 	}
-	
+
 	call := c.service.Users.Messages.Modify(c.userID, messageID, modifyRequest)
 	_, err := call.Do()
 	if err != nil {
@@ -110,7 +110,7 @@ func (c *Client) LabelExists(labelName string) (*gmail.Label, bool) {
 	if err != nil {
 		return nil, false
 	}
-	
+
 	for _, label := range labels {
 		if label.Name == labelName {
 			return label, true
@@ -124,13 +124,13 @@ func (c *Client) FindPeriodSeparatedLabels() ([]*gmail.Label, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var periodLabels []*gmail.Label
 	for _, label := range labels {
 		if label.Type == "user" && strings.Contains(label.Name, ".") {
 			periodLabels = append(periodLabels, label)
 		}
 	}
-	
+
 	return periodLabels, nil
 }

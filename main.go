@@ -72,7 +72,7 @@ var fixCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(analyzeCmd)
 	rootCmd.AddCommand(fixCmd)
-	
+
 	// Fix command flags
 	fixCmd.Flags().StringVarP(&labelName, "label", "l", "", "Name of the specific label to fix (includes all children)")
 	fixCmd.Flags().BoolVar(&fixAll, "all", false, "Fix all period-separated labels")
@@ -82,24 +82,24 @@ func init() {
 
 func setupOperations() (*operations.Operations, error) {
 	fmt.Println("🔐 Authenticating with Gmail...")
-	
+
 	gmailService, err := auth.GetGmailService()
 	if err != nil {
 		return nil, fmt.Errorf("authentication failed: %v", err)
 	}
 
 	client := gmail.NewClient(gmailService)
-	
+
 	// Configure rate limiting
 	config := &operations.Config{
 		RateLimitDelay: rateLimitDelay,
 		MaxRetries:     maxRetries,
 	}
-	
+
 	ops := operations.NewOperationsWithConfig(client, config)
-	
+
 	fmt.Println("✅ Authentication successful!")
-	
+
 	return ops, nil
 }
 

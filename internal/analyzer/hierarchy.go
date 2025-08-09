@@ -19,15 +19,32 @@ func ParseLabelHierarchy(labelName string) *LabelTransformation {
 		return nil // Not a period-separated label
 	}
 
-	transformation := &LabelTransformation{
-		OriginalLabel:   labelName,
-		HierarchyParts:  parts,
-		NestedStructure: strings.Join(parts, "/"),
+	// Special handling for INBOX prefix - remove it entirely
+	finalParts := parts
+	if len(parts) > 1 && strings.ToUpper(parts[0]) == "INBOX" {
+		finalParts = parts[1:] // Remove INBOX prefix
+		
+		// If after removing INBOX there's only one part left, it becomes a root label
+		if len(finalParts) == 1 {
+			transformation := &LabelTransformation{
+				OriginalLabel:    labelName,
+				HierarchyParts:   finalParts,
+				NestedStructure:  finalParts[0], // Just the label name, no hierarchy
+				RequiredParents:  []string{},    // No parents needed
+			}
+			return transformation
+		}
 	}
 
-	// Build required parent labels
-	for i := 1; i < len(parts); i++ {
-		parentPath := strings.Join(parts[:i], "/")
+	transformation := &LabelTransformation{
+		OriginalLabel:   labelName,
+		HierarchyParts:  finalParts,
+		NestedStructure: strings.Join(finalParts, "/"),
+	}
+
+	// Build required parent labels (excluding any INBOX prefix)
+	for i := 1; i < len(finalParts); i++ {
+		parentPath := strings.Join(finalParts[:i], "/")
 		transformation.RequiredParents = append(transformation.RequiredParents, parentPath)
 	}
 

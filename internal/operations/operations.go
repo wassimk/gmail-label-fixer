@@ -200,15 +200,97 @@ func (o *Operations) displayTransformationsTable(transformations map[string]*ana
 func (o *Operations) FixLabel(labelName string) error {
 	fmt.Printf("🔧 Fixing label: %s\n", labelName)
 
-	// Find the specific label without verbose analysis output
-	transformation, err := o.findSpecificLabel(labelName)
+	// Find the specific label and all its children
+	transformations, err := o.findLabelWithChildren(labelName)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("   %s → %s\n", transformation.OriginalLabel, transformation.NestedStructure)
-	
-	return o.processTransformation(transformation)
+	if len(transformations) == 1 {
+		// Single label
+		transformation := transformations[0]
+		fmt.Printf("   %s → %s\n", transformation.OriginalLabel, transformation.NestedStructure)
+		return o.processTransformation(transformation)
+	} else {
+		// Parent label with children
+		fmt.Printf("   Found %d labels (parent + %d children) to fix:\n", len(transformations), len(transformations)-1)
+		for i, transformation := range transformations {
+			fmt.Printf("   [%d/%d] %s → %s\n", i+1, len(transformations), transformation.OriginalLabel, transformation.NestedStructure)
+		}
+		
+		// Process all transformations
+		processed := 0
+		for i, transformation := range transformations {
+			fmt.Printf("\n[%d/%d] Processing: %s\n", i+1, len(transformations), transformation.OriginalLabel)
+			
+			if err := o.processTransformation(transformation); err != nil {
+				fmt.Printf("❌ Failed: %v\n", err)
+				continue
+			}
+			
+			processed++
+			fmt.Printf("✅ Success: %s → %s\n", transformation.OriginalLabel, transformation.NestedStructure)
+		}
+		
+		fmt.Printf("\n🎉 Completed! Processed %d/%d labels successfully.\n", processed, len(transformations))
+		return nil
+	}
+}
+
+// findLabelWithChildren finds a label and all its children for hierarchical processing
+func (o *Operations) findLabelWithChildren(labelName string) ([]*analyzer.LabelTransformation, error) {
+	// Get all period-separated labels
+	periodLabels, err := o.client.FindPeriodSeparatedLabels()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find labels: %v", err)
+	}
+
+	var matchingLabels []*gmailAPI.Label
+	labelPrefix := labelName + "."
+
+	// Find the target label and all its children
+	for _, label := range periodLabels {
+		if label.Name == labelName {
+			// Exact match - this is our target label
+			matchingLabels = append(matchingLabels, label)
+		} else if strings.HasPrefix(label.Name, labelPrefix) {
+			// This is a child label
+			matchingLabels = append(matchingLabels, label)
+		}
+	}
+
+	if len(matchingLabels) == 0 {
+		return nil, fmt.Errorf("label '%s' not found or is not period-separated", labelName)
+	}
+
+	// Sort labels to process parents before children (shorter names first)
+	sort.Slice(matchingLabels, func(i, j int) bool {
+		return len(strings.Split(matchingLabels[i].Name, ".")) < len(strings.Split(matchingLabels[j].Name, "."))
+	})
+
+	var transformations []*analyzer.LabelTransformation
+
+	// Create transformations for all matching labels
+	for _, label := range matchingLabels {
+		transformation := analyzer.ParseLabelHierarchy(label.Name)
+		if transformation == nil {
+			continue // Skip invalid labels
+		}
+		
+		transformation.OriginalID = label.Id
+
+		// Get message count (quietly, no debug output)
+		messageIDs, err := o.client.GetMessagesWithLabel(label.Id)
+		if err != nil {
+			transformation.MessageCount = 0 // Continue anyway
+		} else {
+			transformation.MessageCount = len(messageIDs)
+		}
+
+		transformations = append(transformations, transformation)
+	}
+
+	return transformations, nil
 }
 
 // findSpecificLabel finds and analyzes a single label without verbose output

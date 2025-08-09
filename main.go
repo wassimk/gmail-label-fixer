@@ -42,7 +42,7 @@ var maxRetries int
 var fixCmd = &cobra.Command{
 	Use:   "fix",
 	Short: "Fix label hierarchies",
-	Long:  `Convert period-separated labels to nested hierarchies. Use --label to fix a specific label or --all to fix all detected labels.`,
+	Long:  `Convert period-separated labels to nested hierarchies. Use --label to fix a specific label (and all its children) or --all to fix all detected labels.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Validate flags
 		if labelName != "" && fixAll {
@@ -74,7 +74,7 @@ func init() {
 	rootCmd.AddCommand(fixCmd)
 	
 	// Fix command flags
-	fixCmd.Flags().StringVarP(&labelName, "label", "l", "", "Name of the specific label to fix")
+	fixCmd.Flags().StringVarP(&labelName, "label", "l", "", "Name of the specific label to fix (includes all children)")
 	fixCmd.Flags().BoolVar(&fixAll, "all", false, "Fix all period-separated labels")
 	fixCmd.Flags().IntVar(&rateLimitDelay, "rate-limit-delay", 200, "Delay between API calls in milliseconds")
 	fixCmd.Flags().IntVar(&maxRetries, "max-retries", 3, "Maximum number of retries for rate-limited requests")

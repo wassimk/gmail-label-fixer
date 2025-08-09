@@ -32,8 +32,8 @@ func GetGmailService() (*gmail.Service, error) {
 		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
 	}
 
-	// Use out-of-band flow for CLI applications - more reliable than device code
-	config.RedirectURL = "urn:ietf:wg:oauth:2.0:oob"
+	// Try out-of-band flow first (best for CLI), fallback to localhost if needed
+	// This will be determined in getTokenFromWeb based on what works
 
 	client := getClient(config)
 
@@ -56,7 +56,23 @@ func getClient(config *oauth2.Config) *http.Client {
 }
 
 func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
-	// Generate authorization URL with out-of-band redirect
+	// Try out-of-band flow first (best for CLI applications)
+	token, err := tryOutOfBandFlow(config)
+	if err == nil {
+		return token
+	}
+	
+	fmt.Printf("⚠️  Out-of-band flow failed (%v), trying localhost fallback...\n", err)
+	
+	// Fallback to localhost flow for web application clients
+	return tryLocalhostFlow(config)
+}
+
+func tryOutOfBandFlow(config *oauth2.Config) (*oauth2.Token, error) {
+	// Set out-of-band redirect URI
+	config.RedirectURL = "urn:ietf:wg:oauth:2.0:oob"
+	
+	// Generate authorization URL
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 	
 	fmt.Printf("\n🔐 Gmail Authentication Required\n")
@@ -77,10 +93,47 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 	fmt.Scanln(&authCode)
 	
 	if authCode == "" {
-		log.Fatal("No authorization code provided")
+		return nil, fmt.Errorf("no authorization code provided")
 	}
 	
 	// Exchange the authorization code for a token
+	fmt.Printf("🔄 Exchanging authorization code for access token...\n")
+	token, err := config.Exchange(context.Background(), authCode)
+	if err != nil {
+		return nil, fmt.Errorf("unable to retrieve token: %v", err)
+	}
+
+	fmt.Printf("✅ Authentication successful!\n\n")
+	return token, nil
+}
+
+func tryLocalhostFlow(config *oauth2.Config) *oauth2.Token {
+	// Set localhost redirect URI
+	config.RedirectURL = "http://localhost:8080"
+	
+	fmt.Printf("\n🔐 Falling back to localhost authentication flow\n")
+	fmt.Printf("📝 Note: Consider updating your OAuth client to 'Desktop application' type\n")
+	fmt.Printf("   for a better CLI experience. See: https://console.cloud.google.com/apis/credentials\n\n")
+	
+	// Use a simplified localhost flow (without the complex server we removed)
+	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	
+	fmt.Printf("📱 Please complete the authorization:\n")
+	fmt.Printf("   1. Visit: %s\n", authURL)
+	fmt.Printf("   2. You may see a 'localhost refused connection' error - that's expected\n")
+	fmt.Printf("   3. Copy the 'code' parameter from the error page URL\n")
+	fmt.Printf("   Example: ...localhost:8080/?code=ABC123&scope=... → copy 'ABC123'\n\n")
+
+	openBrowser(authURL)
+
+	fmt.Printf("📋 Enter the authorization code from the URL: ")
+	var authCode string
+	fmt.Scanln(&authCode)
+	
+	if authCode == "" {
+		log.Fatal("No authorization code provided")
+	}
+	
 	fmt.Printf("🔄 Exchanging authorization code for access token...\n")
 	token, err := config.Exchange(context.Background(), authCode)
 	if err != nil {

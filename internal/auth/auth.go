@@ -56,20 +56,7 @@ func getClient(config *oauth2.Config) *http.Client {
 }
 
 func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
-	// Try out-of-band flow first (best for CLI applications)
-	token, err := tryOutOfBandFlow(config)
-	if err == nil {
-		return token
-	}
-	
-	fmt.Printf("⚠️  Out-of-band flow failed (%v), trying localhost fallback...\n", err)
-	
-	// Fallback to localhost flow for web application clients
-	return tryLocalhostFlow(config)
-}
-
-func tryOutOfBandFlow(config *oauth2.Config) (*oauth2.Token, error) {
-	// Set out-of-band redirect URI
+	// Set out-of-band redirect URI for CLI applications
 	config.RedirectURL = "urn:ietf:wg:oauth:2.0:oob"
 	
 	// Generate authorization URL
@@ -81,7 +68,9 @@ func tryOutOfBandFlow(config *oauth2.Config) (*oauth2.Token, error) {
 	fmt.Printf("   1. Visit: %s\n", authURL)
 	fmt.Printf("   2. Complete the authorization process\n")
 	fmt.Printf("   3. Copy the authorization code when prompted\n")
-	fmt.Printf("\n💡 Tip: The URL will be opened automatically if possible\n")
+	fmt.Printf("\n💡 Note: If you get an 'invalid_request' error, you need to update\n")
+	fmt.Printf("   your OAuth client type to 'Desktop application' in Google Console:\n")
+	fmt.Printf("   https://console.cloud.google.com/apis/credentials\n")
 	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
 	// Try to open browser automatically
@@ -93,57 +82,19 @@ func tryOutOfBandFlow(config *oauth2.Config) (*oauth2.Token, error) {
 	fmt.Scanln(&authCode)
 	
 	if authCode == "" {
-		return nil, fmt.Errorf("no authorization code provided")
+		log.Fatal("No authorization code provided")
 	}
 	
 	// Exchange the authorization code for a token
 	fmt.Printf("🔄 Exchanging authorization code for access token...\n")
 	token, err := config.Exchange(context.Background(), authCode)
 	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve token: %v", err)
-	}
-
-	fmt.Printf("✅ Authentication successful!\n\n")
-	return token, nil
-}
-
-func tryLocalhostFlow(config *oauth2.Config) *oauth2.Token {
-	// Set localhost redirect URI
-	config.RedirectURL = "http://localhost:8080"
-	
-	fmt.Printf("\n🔐 Falling back to localhost authentication flow\n")
-	fmt.Printf("📝 Note: Consider updating your OAuth client to 'Desktop application' type\n")
-	fmt.Printf("   for a better CLI experience. See: https://console.cloud.google.com/apis/credentials\n\n")
-	
-	// Use a simplified localhost flow (without the complex server we removed)
-	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	
-	fmt.Printf("📱 Please complete the authorization:\n")
-	fmt.Printf("   1. Visit: %s\n", authURL)
-	fmt.Printf("   2. You may see a 'localhost refused connection' error - that's expected\n")
-	fmt.Printf("   3. Copy the 'code' parameter from the error page URL\n")
-	fmt.Printf("   Example: ...localhost:8080/?code=ABC123&scope=... → copy 'ABC123'\n\n")
-
-	openBrowser(authURL)
-
-	fmt.Printf("📋 Enter the authorization code from the URL: ")
-	var authCode string
-	fmt.Scanln(&authCode)
-	
-	if authCode == "" {
-		log.Fatal("No authorization code provided")
-	}
-	
-	fmt.Printf("🔄 Exchanging authorization code for access token...\n")
-	token, err := config.Exchange(context.Background(), authCode)
-	if err != nil {
-		log.Fatalf("Unable to retrieve token: %v", err)
+		log.Fatalf("Unable to retrieve token: %v\n\n💡 If you're getting an 'invalid_request' error, please:\n   1. Go to https://console.cloud.google.com/apis/credentials\n   2. Edit your OAuth client\n   3. Change Application type from 'Web application' to 'Desktop application'\n   4. Save and try again", err)
 	}
 
 	fmt.Printf("✅ Authentication successful!\n\n")
 	return token
 }
-
 
 func openBrowser(url string) {
 	// Try to open browser on different platforms

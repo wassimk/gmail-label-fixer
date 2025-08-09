@@ -1,6 +1,11 @@
-# OAuth Setup Instructions
+# Gmail API & OAuth Setup Guide
 
-If you're getting "Access blocked: gmail label fixer's request is invalid" error, follow these steps:
+Complete setup guide for Gmail Label Fixer authentication. Follow these steps to enable Gmail API access and configure OAuth credentials.
+
+## Prerequisites
+- A Google account
+- Access to [Google Cloud Console](https://console.cloud.google.com/)
+- The `gmail-label-fixer` executable
 
 ## Step 1: Configure OAuth Client in Google Cloud Console
 

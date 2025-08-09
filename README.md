@@ -28,27 +28,14 @@ go build
 
 ## Setup
 
-### 1. Enable Gmail API
+### Setup Google API Access
 
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Enable the Gmail API:
-   - Go to "APIs & Services" > "Library"
-   - Search for "Gmail API" 
-   - Click "Enable"
+**📋 Quick Setup:** Follow the [OAuth Setup Guide](./setup-oauth.md) to:
+1. Enable the Gmail API in Google Cloud Console
+2. Create OAuth 2.0 credentials
+3. Download the `credentials.json` file
 
-### 2. Create OAuth Credentials
-
-1. Go to "APIs & Services" > "Credentials"
-2. Click "Create Credentials" > "OAuth client ID"
-3. Choose "Desktop application" as the application type
-4. Give it a name (e.g., "Gmail Label Fixer")
-5. Download the credentials JSON file
-6. Rename it to `credentials.json` and place it in the same directory as the executable
-
-**Important**: Make sure your OAuth client is configured as a "Desktop application" type. This ensures the tool can use the proper authentication flow for CLI applications.
-
-### 3. First Run Authentication
+### First Run Authentication
 
 On first run, the tool will:
 1. Automatically open your browser to Google's OAuth page
@@ -167,9 +154,10 @@ The tool performs the following steps for each period-separated label:
 ### Authentication Issues
 
 If you see authentication errors:
-1. Ensure `credentials.json` is in the correct location
-2. Delete `token.json` and re-authenticate
-3. Verify the Gmail API is enabled in your Google Cloud Console
+1. Follow the complete [OAuth Setup Guide](./setup-oauth.md)
+2. Ensure `credentials.json` is in the correct location  
+3. Delete `token.json` and re-authenticate
+4. Verify your OAuth client is configured as "Desktop application"
 
 ### Rate Limiting
 

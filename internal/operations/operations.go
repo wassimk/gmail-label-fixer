@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/olekukonko/tablewriter"
+	gmailAPI "google.golang.org/api/gmail/v1"
 )
 
 type Operations struct {
@@ -139,7 +140,23 @@ func (o *Operations) FixAllLabels() error {
 		return nil
 	}
 
-	// Process all transformations
+	// Step 1: Create all required parent labels first (avoids duplicates)
+	if len(result.RequiredParents) > 0 {
+		fmt.Printf("\n📁 Creating %d required parent labels...\n", len(result.RequiredParents))
+		for _, parentName := range result.RequiredParents {
+			if _, exists := o.client.LabelExists(parentName); !exists {
+				fmt.Printf("   Creating parent: %s\n", parentName)
+				_, err := o.client.CreateLabel(parentName)
+				if err != nil {
+					fmt.Printf("   ⚠️  Warning: Failed to create parent %s: %v\n", parentName, err)
+				}
+			} else {
+				fmt.Printf("   Skipping existing parent: %s\n", parentName)
+			}
+		}
+	}
+
+	// Step 2: Process all transformations
 	processed := 0
 	for _, transformation := range result.Transformations {
 		fmt.Printf("\n[%d/%d] Processing: %s\n", processed+1, len(result.Transformations), transformation.OriginalLabel)
@@ -158,7 +175,7 @@ func (o *Operations) FixAllLabels() error {
 }
 
 func (o *Operations) processTransformation(transformation *analyzer.LabelTransformation) error {
-	// Step 1: Create required parent labels
+	// Step 1: Create required parent labels (only for selective fixes)
 	for _, parentName := range transformation.RequiredParents {
 		if _, exists := o.client.LabelExists(parentName); !exists {
 			fmt.Printf("   Creating parent label: %s\n", parentName)
@@ -169,11 +186,18 @@ func (o *Operations) processTransformation(transformation *analyzer.LabelTransfo
 		}
 	}
 
-	// Step 2: Create the final nested label
-	fmt.Printf("   Creating nested label: %s\n", transformation.NestedStructure)
-	newLabel, err := o.client.CreateLabel(transformation.NestedStructure)
-	if err != nil {
-		return fmt.Errorf("failed to create nested label %s: %v", transformation.NestedStructure, err)
+	// Step 2: Create the final nested label (check if it already exists)
+	var newLabel *gmailAPI.Label
+	if existingLabel, exists := o.client.LabelExists(transformation.NestedStructure); exists {
+		fmt.Printf("   Using existing nested label: %s\n", transformation.NestedStructure)
+		newLabel = existingLabel
+	} else {
+		fmt.Printf("   Creating nested label: %s\n", transformation.NestedStructure)
+		var err error
+		newLabel, err = o.client.CreateLabel(transformation.NestedStructure)
+		if err != nil {
+			return fmt.Errorf("failed to create nested label %s: %v", transformation.NestedStructure, err)
+		}
 	}
 
 	// Step 3: Move all messages from old label to new label

@@ -67,15 +67,15 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 	listener.Close()
-	
+
 	// Set loopback redirect URI (Google's recommended approach for CLI apps)
 	redirectURL := fmt.Sprintf("http://%s:%d/callback", loopbackHost, port)
 	config.RedirectURL = redirectURL
-	
+
 	// Create channels for communication between server and main goroutine
 	codeCh := make(chan string, 1)
 	errCh := make(chan error, 1)
-	
+
 	// Create HTTP server to capture the authorization code
 	server := &http.Server{
 		Addr: fmt.Sprintf("%s:%d", loopbackHost, port),
@@ -92,7 +92,7 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 				http.Error(w, "Authorization failed", http.StatusBadRequest)
 				return
 			}
-			
+
 			// Send success response to user
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			fmt.Fprintf(w, `<!DOCTYPE html>
@@ -118,21 +118,21 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 	</script>
 </body>
 </html>`)
-			
+
 			codeCh <- code
 		}),
 	}
-	
+
 	// Start the server in a goroutine
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- fmt.Errorf("loopback server error: %v", err)
 		}
 	}()
-	
+
 	// Generate authorization URL
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	
+
 	fmt.Printf("\n🔐 Gmail Authentication Required\n")
 	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 	fmt.Printf("🌐 Opening browser for secure authentication...\n")
@@ -140,10 +140,10 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 	fmt.Printf("\n💡 This will open your browser and redirect back to this application\n")
 	fmt.Printf("   securely. No manual code copying required!\n")
 	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-	
+
 	// Open browser automatically
 	openBrowser(authURL)
-	
+
 	// Wait for authorization response or timeout
 	var code string
 	select {
@@ -156,17 +156,17 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 		server.Shutdown(context.Background())
 		log.Fatal("Authorization timed out after 5 minutes")
 	}
-	
+
 	// Shutdown server gracefully
 	server.Shutdown(context.Background())
-	
+
 	// Exchange authorization code for token
 	fmt.Printf("🔄 Exchanging authorization code for access token...\n")
 	token, err := config.Exchange(context.Background(), code)
 	if err != nil {
 		log.Fatalf("Unable to retrieve token: %v\n\n💡 Make sure your OAuth client is configured as 'Desktop application':\n   https://console.cloud.google.com/apis/credentials", err)
 	}
-	
+
 	fmt.Printf("✅ Authentication successful!\n\n")
 	return token
 }

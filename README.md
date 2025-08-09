@@ -149,6 +149,3 @@ If the analysis shows conflicts (existing labels with the same names as targets)
 ./gmail-label-fixer --help
 ```
 
-## License
-
-This tool is provided as-is for personal and educational use. Use at your own risk.

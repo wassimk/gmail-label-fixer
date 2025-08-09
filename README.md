@@ -13,12 +13,19 @@ A command-line tool to convert period-separated Gmail labels (like `Vacations.20
 
 ## Installation
 
-### Prerequisites
+### Option 1: Download Prebuilt Binary
 
-- Go 1.21 or higher
-- Gmail API credentials (see Setup section)
+Download the latest binary for your platform from the [releases page](../../releases/latest):
+- **Linux**: `gmail-label-fixer-linux-amd64` or `gmail-label-fixer-linux-arm64`
+- **macOS**: `gmail-label-fixer-darwin-amd64` or `gmail-label-fixer-darwin-arm64`
+- **Windows**: `gmail-label-fixer-windows-amd64.exe` or `gmail-label-fixer-windows-arm64.exe`
 
-### Build from Source
+Make the binary executable (Linux/macOS):
+```bash
+chmod +x gmail-label-fixer-*
+```
+
+### Option 2: Build from Source
 
 ```bash
 git clone <repository-url>

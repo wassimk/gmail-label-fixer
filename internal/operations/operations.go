@@ -213,17 +213,55 @@ func (o *Operations) displayTransformationsTable(transformations map[string]*ana
 func (o *Operations) FixLabel(labelName string) error {
 	fmt.Printf("🔧 Fixing label: %s\n", labelName)
 
-	result, err := o.analyzer.AnalyzeLabels()
+	// Find the specific label without verbose analysis output
+	transformation, err := o.findSpecificLabel(labelName)
 	if err != nil {
-		return fmt.Errorf("analysis failed: %v", err)
+		return err
 	}
 
-	transformation, exists := result.Transformations[labelName]
-	if !exists {
-		return fmt.Errorf("label '%s' not found or is not period-separated", labelName)
-	}
-
+	fmt.Printf("   %s → %s\n", transformation.OriginalLabel, transformation.NestedStructure)
+	
 	return o.processTransformation(transformation)
+}
+
+// findSpecificLabel finds and analyzes a single label without verbose output
+func (o *Operations) findSpecificLabel(labelName string) (*analyzer.LabelTransformation, error) {
+	// Get all period-separated labels
+	periodLabels, err := o.client.FindPeriodSeparatedLabels()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find labels: %v", err)
+	}
+
+	// Find the specific label
+	var targetLabel *gmailAPI.Label
+	for _, label := range periodLabels {
+		if label.Name == labelName {
+			targetLabel = label
+			break
+		}
+	}
+
+	if targetLabel == nil {
+		return nil, fmt.Errorf("label '%s' not found or is not period-separated", labelName)
+	}
+
+	// Create transformation for this specific label
+	transformation := analyzer.ParseLabelHierarchy(targetLabel.Name)
+	if transformation == nil {
+		return nil, fmt.Errorf("label '%s' is not period-separated", labelName)
+	}
+	
+	transformation.OriginalID = targetLabel.Id
+
+	// Get message count (quietly, no debug output)
+	messageIDs, err := o.client.GetMessagesWithLabel(targetLabel.Id)
+	if err != nil {
+		transformation.MessageCount = 0 // Continue anyway
+	} else {
+		transformation.MessageCount = len(messageIDs)
+	}
+
+	return transformation, nil
 }
 
 func (o *Operations) FixAllLabels() error {

@@ -34,22 +34,22 @@ var analyzeCmd = &cobra.Command{
 	},
 }
 
+var labelName string
+var fixAll bool
+var rateLimitDelay int
+var maxRetries int
+
 var fixCmd = &cobra.Command{
 	Use:   "fix",
 	Short: "Fix label hierarchies",
-	Long:  `Convert period-separated labels to nested hierarchies. Use --label to fix specific labels or --all to fix all detected labels.`,
-}
-
-var labelName string
-var fixAll bool
-
-var fixLabelCmd = &cobra.Command{
-	Use:   "label",
-	Short: "Fix a specific label",
-	Long:  `Fix a specific period-separated label and convert it to a nested hierarchy.`,
+	Long:  `Convert period-separated labels to nested hierarchies. Use --label to fix a specific label or --all to fix all detected labels.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if labelName == "" {
-			log.Fatal("Label name is required. Use --label flag")
+		// Validate flags
+		if labelName != "" && fixAll {
+			log.Fatal("Cannot use both --label and --all flags together")
+		}
+		if labelName == "" && !fixAll {
+			log.Fatal("Must specify either --label or --all flag")
 		}
 
 		ops, err := setupOperations()
@@ -57,24 +57,14 @@ var fixLabelCmd = &cobra.Command{
 			log.Fatalf("Setup failed: %v", err)
 		}
 
-		if err := ops.FixLabel(labelName); err != nil {
-			log.Fatalf("Fix failed: %v", err)
-		}
-	},
-}
-
-var fixAllCmd = &cobra.Command{
-	Use:   "all",
-	Short: "Fix all period-separated labels",
-	Long:  `Convert all detected period-separated labels to nested hierarchies.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		ops, err := setupOperations()
-		if err != nil {
-			log.Fatalf("Setup failed: %v", err)
-		}
-
-		if err := ops.FixAllLabels(); err != nil {
-			log.Fatalf("Fix all failed: %v", err)
+		if fixAll {
+			if err := ops.FixAllLabels(); err != nil {
+				log.Fatalf("Fix all failed: %v", err)
+			}
+		} else {
+			if err := ops.FixLabel(labelName); err != nil {
+				log.Fatalf("Fix failed: %v", err)
+			}
 		}
 	},
 }
@@ -83,11 +73,11 @@ func init() {
 	rootCmd.AddCommand(analyzeCmd)
 	rootCmd.AddCommand(fixCmd)
 	
-	fixCmd.AddCommand(fixLabelCmd)
-	fixCmd.AddCommand(fixAllCmd)
-	
-	fixLabelCmd.Flags().StringVarP(&labelName, "label", "l", "", "Name of the label to fix")
-	fixLabelCmd.MarkFlagRequired("label")
+	// Fix command flags
+	fixCmd.Flags().StringVarP(&labelName, "label", "l", "", "Name of the specific label to fix")
+	fixCmd.Flags().BoolVar(&fixAll, "all", false, "Fix all period-separated labels")
+	fixCmd.Flags().IntVar(&rateLimitDelay, "rate-limit-delay", 200, "Delay between API calls in milliseconds")
+	fixCmd.Flags().IntVar(&maxRetries, "max-retries", 3, "Maximum number of retries for rate-limited requests")
 }
 
 func setupOperations() (*operations.Operations, error) {
@@ -99,7 +89,14 @@ func setupOperations() (*operations.Operations, error) {
 	}
 
 	client := gmail.NewClient(gmailService)
-	ops := operations.NewOperations(client)
+	
+	// Configure rate limiting
+	config := &operations.Config{
+		RateLimitDelay: rateLimitDelay,
+		MaxRetries:     maxRetries,
+	}
+	
+	ops := operations.NewOperationsWithConfig(client, config)
 	
 	fmt.Println("✅ Authentication successful!")
 	

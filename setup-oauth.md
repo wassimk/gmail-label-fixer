@@ -18,9 +18,8 @@ If you're getting "Access blocked: gmail label fixer's request is invalid" error
 5. **Configure the OAuth client**:
    - **Application type**: Desktop application
    - **Name**: Gmail Label Fixer
-   - **Authorized redirect URIs**: Add these URIs:
-     - `urn:ietf:wg:oauth:2.0:oob`
-     - `http://localhost:8080/auth/callback` (as backup)
+   - **Authorized redirect URIs**: No redirect URIs needed for desktop apps!
+     (The app will use dynamic localhost ports automatically)
    
 6. **Download credentials**:
    - Click "Download" to get the JSON file
@@ -58,7 +57,7 @@ Your `credentials.json` should look similar to:
     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
     "token_uri": "https://oauth2.googleapis.com/token",
     "client_secret": "your-client-secret",
-    "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"]
+    "redirect_uris": ["http://localhost"]
   }
 }
 ```
@@ -73,7 +72,7 @@ Your `credentials.json` should look similar to:
 
 ### Error: "invalid_request"
 - Make sure your OAuth client is configured as "Desktop application"
-- Verify the redirect URIs are correctly set
+- No redirect URIs should be needed for desktop applications
 - Re-download the credentials.json file
 
 ### Error: "access_denied" 

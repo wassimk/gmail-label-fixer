@@ -51,24 +51,26 @@ go build
 ### 3. First Run Authentication
 
 On first run, the tool will:
-1. Display a Google OAuth authentication URL
-2. Ask you to open the URL in your browser and sign in
-3. Request you to copy and paste the authorization code
+1. Automatically open your browser to Google's OAuth page
+2. Ask you to sign in and grant permissions
+3. Automatically redirect back and complete authentication
 4. Save an authentication token (`token.json`) for future use
 
 **Authentication Flow:**
 ```
 🔐 Gmail Authentication Required
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. Open the following link in your browser:
-   https://accounts.google.com/o/oauth2/auth?...
+🌐 Opening browser for secure authentication...
+   URL: https://accounts.google.com/o/oauth2/auth?...
 
-2. Sign in to your Google Workspace account
-3. Grant the requested permissions
-4. Copy the authorization code from the browser
-5. Paste the authorization code here and press Enter
+💡 This will open your browser and redirect back to this application
+   securely. No manual code copying required!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Authorization code: [paste code here]
+
+[Browser opens automatically]
+✅ Authorization received!
+🔄 Exchanging authorization code for access token...
+✅ Authentication successful!
 ```
 
 ## Usage

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -17,6 +19,8 @@ import (
 
 const (
 	tokenFile = "token.json"
+	// Loopback configuration for secure CLI OAuth flow
+	loopbackHost = "127.0.0.1"
 )
 
 func GetGmailService() (*gmail.Service, error) {
@@ -32,8 +36,8 @@ func GetGmailService() (*gmail.Service, error) {
 		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
 	}
 
-	// Try out-of-band flow first (best for CLI), fallback to localhost if needed
-	// This will be determined in getTokenFromWeb based on what works
+	// Use loopback flow for CLI applications (Google's recommended approach)
+	// The redirect URI will be set dynamically to an available port
 
 	client := getClient(config)
 
@@ -56,42 +60,113 @@ func getClient(config *oauth2.Config) *http.Client {
 }
 
 func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
-	// Set out-of-band redirect URI for CLI applications
-	config.RedirectURL = "urn:ietf:wg:oauth:2.0:oob"
+	// Find an available port for the loopback server
+	listener, err := net.Listen("tcp", loopbackHost+":0")
+	if err != nil {
+		log.Fatalf("Unable to create loopback server: %v", err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
+	
+	// Set loopback redirect URI (Google's recommended approach for CLI apps)
+	redirectURL := fmt.Sprintf("http://%s:%d/callback", loopbackHost, port)
+	config.RedirectURL = redirectURL
+	
+	// Create channels for communication between server and main goroutine
+	codeCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+	
+	// Create HTTP server to capture the authorization code
+	server := &http.Server{
+		Addr: fmt.Sprintf("%s:%d", loopbackHost, port),
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Extract authorization code from callback
+			code := r.URL.Query().Get("code")
+			if code == "" {
+				errMsg := r.URL.Query().Get("error")
+				if errMsg != "" {
+					errCh <- fmt.Errorf("authorization error: %s", errMsg)
+				} else {
+					errCh <- fmt.Errorf("no authorization code received")
+				}
+				http.Error(w, "Authorization failed", http.StatusBadRequest)
+				return
+			}
+			
+			// Send success response to user
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprintf(w, `<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<title>Gmail Label Fixer - Authentication Successful</title>
+	<style>
+		body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+		       text-align: center; padding: 50px; background: #f8f9fa; }
+		.success { color: #28a745; font-size: 24px; margin-bottom: 20px; }
+		.message { color: #495057; font-size: 16px; }
+	</style>
+</head>
+<body>
+	<div class="success">🎉 Authentication Successful!</div>
+	<div class="message">You can close this browser tab and return to the terminal.</div>
+	<script>
+		// Auto-close tab after 3 seconds
+		setTimeout(() => { 
+			try { window.close(); } catch(e) { /* ignore */ }
+		}, 3000);
+	</script>
+</body>
+</html>`)
+			
+			codeCh <- code
+		}),
+	}
+	
+	// Start the server in a goroutine
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errCh <- fmt.Errorf("loopback server error: %v", err)
+		}
+	}()
 	
 	// Generate authorization URL
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 	
 	fmt.Printf("\n🔐 Gmail Authentication Required\n")
 	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-	fmt.Printf("📱 Please complete the authorization in your browser:\n")
-	fmt.Printf("   1. Visit: %s\n", authURL)
-	fmt.Printf("   2. Complete the authorization process\n")
-	fmt.Printf("   3. Copy the authorization code when prompted\n")
-	fmt.Printf("\n💡 Note: If you get an 'invalid_request' error, you need to update\n")
-	fmt.Printf("   your OAuth client type to 'Desktop application' in Google Console:\n")
-	fmt.Printf("   https://console.cloud.google.com/apis/credentials\n")
+	fmt.Printf("🌐 Opening browser for secure authentication...\n")
+	fmt.Printf("   URL: %s\n", authURL)
+	fmt.Printf("\n💡 This will open your browser and redirect back to this application\n")
+	fmt.Printf("   securely. No manual code copying required!\n")
 	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-
-	// Try to open browser automatically
+	
+	// Open browser automatically
 	openBrowser(authURL)
-
-	// Prompt user to enter the authorization code
-	fmt.Printf("\n📋 Enter the authorization code: ")
-	var authCode string
-	fmt.Scanln(&authCode)
 	
-	if authCode == "" {
-		log.Fatal("No authorization code provided")
+	// Wait for authorization response or timeout
+	var code string
+	select {
+	case code = <-codeCh:
+		fmt.Printf("✅ Authorization received!\n")
+	case err := <-errCh:
+		server.Shutdown(context.Background())
+		log.Fatalf("Authorization failed: %v", err)
+	case <-time.After(5 * time.Minute):
+		server.Shutdown(context.Background())
+		log.Fatal("Authorization timed out after 5 minutes")
 	}
 	
-	// Exchange the authorization code for a token
+	// Shutdown server gracefully
+	server.Shutdown(context.Background())
+	
+	// Exchange authorization code for token
 	fmt.Printf("🔄 Exchanging authorization code for access token...\n")
-	token, err := config.Exchange(context.Background(), authCode)
+	token, err := config.Exchange(context.Background(), code)
 	if err != nil {
-		log.Fatalf("Unable to retrieve token: %v\n\n💡 If you're getting an 'invalid_request' error, please:\n   1. Go to https://console.cloud.google.com/apis/credentials\n   2. Edit your OAuth client\n   3. Change Application type from 'Web application' to 'Desktop application'\n   4. Save and try again", err)
+		log.Fatalf("Unable to retrieve token: %v\n\n💡 Make sure your OAuth client is configured as 'Desktop application':\n   https://console.cloud.google.com/apis/credentials", err)
 	}
-
+	
 	fmt.Printf("✅ Authentication successful!\n\n")
 	return token
 }

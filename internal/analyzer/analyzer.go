@@ -40,10 +40,15 @@ func (a *Analyzer) AnalyzeLabels() (*AnalysisResult, error) {
 			// Get message count for this label
 			messageIDs, err := a.client.GetMessagesWithLabel(label.Id)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get message count for label %s: %v", label.Name, err)
+				fmt.Printf("   Warning: failed to get message count for label %s: %v\n", label.Name, err)
+				transformation.MessageCount = 0
+			} else {
+				transformation.MessageCount = len(messageIDs)
+				totalMessages += len(messageIDs)
+				if len(messageIDs) > 0 {
+					fmt.Printf("   Label '%s' has %d messages\n", label.Name, len(messageIDs))
+				}
 			}
-			transformation.MessageCount = len(messageIDs)
-			totalMessages += len(messageIDs)
 
 			transformations[label.Name] = transformation
 		}

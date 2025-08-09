@@ -36,7 +36,21 @@ func (o *Operations) DryRun() error {
 		return nil
 	}
 
-	fmt.Printf("\n📊 Found %d period-separated labels with %d total messages\n\n", len(result.PeriodLabels), result.TotalMessages)
+	fmt.Printf("\n📊 Found %d period-separated labels with %d total messages\n", len(result.PeriodLabels), result.TotalMessages)
+	
+	// Debug: Show first few labels for troubleshooting
+	fmt.Printf("\n🔍 Sample labels found:\n")
+	count := 0
+	for _, label := range result.PeriodLabels {
+		if count < 5 {
+			fmt.Printf("   - %s (ID: %s)\n", label.Name, label.Id)
+			count++
+		}
+	}
+	if len(result.PeriodLabels) > 5 {
+		fmt.Printf("   ... and %d more\n", len(result.PeriodLabels)-5)
+	}
+	fmt.Println()
 
 	// Check for conflicts
 	conflicts := o.analyzer.CheckConflicts(result.Transformations)

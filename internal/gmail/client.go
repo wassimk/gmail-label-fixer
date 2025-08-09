@@ -53,8 +53,8 @@ func (c *Client) DeleteLabel(labelID string) error {
 }
 
 func (c *Client) GetMessagesWithLabel(labelID string) ([]string, error) {
-	query := fmt.Sprintf("label:%s", labelID)
-	call := c.service.Users.Messages.List(c.userID).Q(query)
+	// Use labelId parameter instead of search query for more reliable results
+	call := c.service.Users.Messages.List(c.userID).LabelIds(labelID)
 	
 	var messageIDs []string
 	

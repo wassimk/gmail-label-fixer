@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"gmail-label-fixer/internal/auth"
@@ -22,15 +21,16 @@ var analyzeCmd = &cobra.Command{
 	Use:   "analyze",
 	Short: "Analyze existing labels and show proposed changes (dry run)",
 	Long:  `Scan all Gmail labels and identify period-separated labels that can be converted to nested hierarchies. Shows what changes would be made without actually making them.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		ops, err := setupOperations()
 		if err != nil {
-			log.Fatalf("Setup failed: %v", err)
+			return fmt.Errorf("setup failed: %w", err)
 		}
 
 		if err := ops.DryRun(); err != nil {
-			log.Fatalf("Analysis failed: %v", err)
+			return fmt.Errorf("analysis failed: %w", err)
 		}
+		return nil
 	},
 }
 
@@ -43,28 +43,30 @@ var fixCmd = &cobra.Command{
 	Use:   "fix",
 	Short: "Fix label hierarchies",
 	Long:  `Convert period-separated labels to nested hierarchies. Use --label to fix a specific label (and all its children) or --all to fix all detected labels.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// Validate flags
 		if labelName != "" && fixAll {
-			log.Fatal("Cannot use both --label and --all flags together")
+			return fmt.Errorf("cannot use both --label and --all flags together")
 		}
 		if labelName == "" && !fixAll {
-			log.Fatal("Must specify either --label or --all flag")
+			return fmt.Errorf("must specify either --label or --all flag")
 		}
 
 		ops, err := setupOperations()
 		if err != nil {
-			log.Fatalf("Setup failed: %v", err)
+			return fmt.Errorf("setup failed: %w", err)
 		}
 
 		if fixAll {
 			if err := ops.FixAllLabels(); err != nil {
-				log.Fatalf("Fix all failed: %v", err)
+				return fmt.Errorf("fix all failed: %w", err)
 			}
+			return nil
 		} else {
 			if err := ops.FixLabel(labelName); err != nil {
-				log.Fatalf("Fix failed: %v", err)
+				return fmt.Errorf("fix failed: %w", err)
 			}
+			return nil
 		}
 	},
 }

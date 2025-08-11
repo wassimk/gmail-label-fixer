@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -36,10 +35,10 @@ func GetGmailService() (*gmail.Service, error) {
 		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
 	}
 
-	// Use loopback flow for CLI applications (Google's recommended approach)
-	// The redirect URI will be set dynamically to an available port
-
-	client := getClient(config)
+	client, err := getClient(config)
+	if err != nil {
+		return nil, err
+	}
 
 	srv, err := gmail.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
@@ -49,21 +48,26 @@ func GetGmailService() (*gmail.Service, error) {
 	return srv, nil
 }
 
-func getClient(config *oauth2.Config) *http.Client {
+func getClient(config *oauth2.Config) (*http.Client, error) {
 	tokFile := tokenFile
 	tok, err := tokenFromFile(tokFile)
 	if err != nil {
-		tok = getTokenFromWeb(config)
-		saveToken(tokFile, tok)
+		// Need to obtain new token interactively
+		if tok, err = getTokenFromWeb(config); err != nil {
+			return nil, err
+		}
+		if err := saveToken(tokFile, tok); err != nil {
+			return nil, fmt.Errorf("failed to save token: %w", err)
+		}
 	}
-	return config.Client(context.Background(), tok)
+	return config.Client(context.Background(), tok), nil
 }
 
-func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
+func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 	// Find an available port for the loopback server
 	listener, err := net.Listen("tcp", loopbackHost+":0")
 	if err != nil {
-		log.Fatalf("Unable to create loopback server: %v", err)
+		return nil, fmt.Errorf("unable to create loopback server: %v", err)
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
 	listener.Close()
@@ -151,10 +155,10 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 		fmt.Printf("✅ Authorization received!\n")
 	case err := <-errCh:
 		server.Shutdown(context.Background())
-		log.Fatalf("Authorization failed: %v", err)
+		return nil, fmt.Errorf("authorization failed: %w", err)
 	case <-time.After(5 * time.Minute):
 		server.Shutdown(context.Background())
-		log.Fatal("Authorization timed out after 5 minutes")
+		return nil, fmt.Errorf("authorization timed out after 5 minutes")
 	}
 
 	// Shutdown server gracefully
@@ -164,11 +168,11 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 	fmt.Printf("🔄 Exchanging authorization code for access token...\n")
 	token, err := config.Exchange(context.Background(), code)
 	if err != nil {
-		log.Fatalf("Unable to retrieve token: %v\n\n💡 Make sure your OAuth client is configured as 'Desktop application':\n   https://console.cloud.google.com/apis/credentials", err)
+		return nil, fmt.Errorf("unable to retrieve token: %v\n\n💡 Make sure your OAuth client is configured as 'Desktop application':\n   https://console.cloud.google.com/apis/credentials", err)
 	}
 
 	fmt.Printf("✅ Authentication successful!\n\n")
-	return token
+	return token, nil
 }
 
 func openBrowser(url string) {
@@ -183,7 +187,7 @@ func openBrowser(url string) {
 	case commandExists("xdg-open"): // Linux
 		cmd = "xdg-open"
 		args = []string{url}
-	case commandExists("cmd"): // Windows
+	case commandExists("rundll32"): // Windows
 		cmd = "rundll32"
 		args = []string{"url.dll,FileProtocolHandler", url}
 	default:
@@ -191,9 +195,7 @@ func openBrowser(url string) {
 	}
 
 	// Execute command (ignore errors)
-	go func() {
-		exec.Command(cmd, args...).Start()
-	}()
+	go func() { _ = exec.Command(cmd, args...).Start() }()
 }
 
 func commandExists(cmd string) bool {
@@ -212,19 +214,22 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 	return tok, err
 }
 
-func saveToken(path string, token *oauth2.Token) {
+func saveToken(path string, token *oauth2.Token) error {
 	fmt.Printf("Saving credential file to: %s\n", path)
 
 	// Remove existing file first to ensure proper permissions
-	os.Remove(path)
+	_ = os.Remove(path)
 
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		log.Fatalf("Unable to cache oauth token: %v", err)
+		return err
 	}
 	defer f.Close()
 
 	if err := json.NewEncoder(f).Encode(token); err != nil {
-		log.Fatalf("Unable to encode oauth token: %v", err)
+		return err
 	}
+	// Best-effort sync
+	_ = f.Sync()
+	return nil
 }

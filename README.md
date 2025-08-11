@@ -104,24 +104,31 @@ Example output:
    - Work
 
 💡 Next steps:
-   - Fix specific label: gmail-label-fixer fix label --label "Vacations.2025.Mexico"
-   - Fix all labels: gmail-label-fixer fix all
+   - Fix specific label: gmail-label-fixer fix --label "Vacations.2025.Mexico"
+   - Fix all labels: gmail-label-fixer fix --all
 ```
 
-### Fix Specific Label
+### Fix Specific Label (and its children)
 
 Convert a single period-separated label to nested hierarchy:
 
 ```bash
-./gmail-label-fixer fix label --label "Vacations.2025.Mexico"
+./gmail-label-fixer fix --label "Vacations.2025.Mexico"
 ```
 
-### Fix All Labels
+### Fix All Period-Separated Labels
 
 Convert all detected period-separated labels:
 
 ```bash
-./gmail-label-fixer fix all
+./gmail-label-fixer fix --all
+```
+
+### Rate Limit / Retry Controls
+
+```bash
+# Increase delay between API calls and retries
+./gmail-label-fixer fix --all --rate-limit-delay 500 --max-retries 5
 ```
 
 ## Troubleshooting
@@ -137,8 +144,9 @@ If you see authentication errors:
 ### Rate Limiting
 
 If you encounter rate limit errors:
-1. Wait a few minutes and retry
-2. Consider fixing labels in smaller batches using the selective fix option
+1. Increase `--rate-limit-delay`
+2. Retry after a short wait
+3. Fix labels in smaller batches using `--label`
 
 ### Conflicts
 
@@ -153,13 +161,24 @@ If the analysis shows conflicts (existing labels with the same names as targets)
 # Analyze all labels (dry run)
 ./gmail-label-fixer analyze
 
-# Fix specific label
-./gmail-label-fixer fix label --label "Label.Name.Here"
+# Fix specific label (and all children)
+./gmail-label-fixer fix --label "Label.Name.Here"
 
 # Fix all period-separated labels
-./gmail-label-fixer fix all
+./gmail-label-fixer fix --all
+
+# Tune rate limiting
+./gmail-label-fixer fix --all --rate-limit-delay 400 --max-retries 5
 
 # Show help
 ./gmail-label-fixer --help
 ```
+
+## Notes
+- Gmail automatically maintains message associations when labels are renamed; no manual re-labeling required.
+- Parent label structures are created implicitly by Gmail when renaming to nested paths using `/`.
+- The tool skips protected system-like labels that begin with INBOX.* (e.g. INBOX.Trash, INBOX.Sent).
+
+---
+MIT Licensed. Contributions welcome.
 

@@ -1,11 +1,11 @@
 module gmail-label-fixer
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/olekukonko/tablewriter v1.0.9
 	github.com/spf13/cobra v1.9.1
-	golang.org/x/oauth2 v0.30.0
+	golang.org/x/oauth2 v0.37.0
 	google.golang.org/api v0.246.0
 )
 
